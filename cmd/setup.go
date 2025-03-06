@@ -122,7 +122,7 @@ func runCommand(s step, index int) tea.Cmd {
 
 // newSetupModel creates a new setup model with our steps and a single spinner.
 func newSetupModel(steps []step) *setupModel {
-	sp := spinner.NewModel()
+	sp := spinner.New()
 	sp.Style = spinnerStyle
 	sp.Spinner = spinner.Line
 	return &setupModel{
@@ -152,10 +152,10 @@ var SetupCmd = &cobra.Command{
 		}
 		profilePath := usr.HomeDir + "/.zprofile"
 
-		// Create a slice for gathering our steps.
 		var steps []step
 
-		// Check if Homebrew is already installed.
+		// Check if Homebrew is installed.
+		brewInstalled := false
 		if _, err := exec.LookPath("brew"); err != nil {
 			// Homebrew is not installed; add installation steps.
 			steps = append(steps, step{
@@ -163,7 +163,6 @@ var SetupCmd = &cobra.Command{
 				command:     "/bin/bash",
 				args: []string{
 					"-c",
-					// Note: This is the official Homebrew install command.
 					"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)",
 				},
 			})
@@ -172,7 +171,10 @@ var SetupCmd = &cobra.Command{
 				command:     "/bin/bash",
 				args: []string{
 					"-c",
-					fmt.Sprintf(`(echo; echo 'eval "$(/opt/homebrew/bin/brew shellenv)"') >> %s`, profilePath),
+					fmt.Sprintf(
+						`(echo; echo 'eval "$(/opt/homebrew/bin/brew shellenv)"') >> %s`,
+						profilePath,
+					),
 				},
 			})
 			steps = append(steps, step{
@@ -181,25 +183,52 @@ var SetupCmd = &cobra.Command{
 				args:        []string{"-c", `eval "$(/opt/homebrew/bin/brew shellenv)"`},
 			})
 		} else {
+			brewInstalled = true
 			fmt.Println("Homebrew is already installed, skipping installation.")
 		}
 
-		// Append formula installation steps.
+		// Append normal (formula) installation steps.
 		for _, pkg := range normalInstallations {
-			steps = append(steps, step{
-				description: fmt.Sprintf("Installing %s...", pkg),
-				command:     "brew",
-				args:        []string{"install", pkg},
-			})
+			if brewInstalled {
+				// Check if the package is already installed.
+				if err := exec.Command("brew", "list", pkg).Run(); err != nil {
+					steps = append(steps, step{
+						description: fmt.Sprintf("Installing %s...", pkg),
+						command:     "brew",
+						args:        []string{"install", pkg},
+					})
+				} else {
+					fmt.Printf("%s is already installed, skipping installation.\n", pkg)
+				}
+			} else {
+				// If Homebrew wasn't installed at the start, simply add the step.
+				steps = append(steps, step{
+					description: fmt.Sprintf("Installing %s...", pkg),
+					command:     "brew",
+					args:        []string{"install", pkg},
+				})
+			}
 		}
 
 		// Append cask installation steps.
 		for _, pkg := range caskInstallations {
-			steps = append(steps, step{
-				description: fmt.Sprintf("Installing %s...", pkg),
-				command:     "brew",
-				args:        []string{"install", "--cask", pkg},
-			})
+			if brewInstalled {
+				if err := exec.Command("brew", "list", "--cask", pkg).Run(); err != nil {
+					steps = append(steps, step{
+						description: fmt.Sprintf("Installing %s...", pkg),
+						command:     "brew",
+						args:        []string{"install", "--cask", pkg},
+					})
+				} else {
+					fmt.Printf("%s is already installed, skipping installation.\n", pkg)
+				}
+			} else {
+				steps = append(steps, step{
+					description: fmt.Sprintf("Installing %s...", pkg),
+					command:     "brew",
+					args:        []string{"install", "--cask", pkg},
+				})
+			}
 		}
 
 		// Create and start the Bubble Tea program with our steps.
