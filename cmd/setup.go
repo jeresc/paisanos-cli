@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"os/user"
 	"runtime"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -23,11 +24,15 @@ var (
 // Lists for normal (formula) and cask installations.
 var normalInstallations = []string{
 	"neovim",
+	"git",
+	"node",
 }
 
 var caskInstallations = []string{
-	"google-chrome",
 	"figma",
+	"notion",
+	"slack",
+	"google-chrome",
 }
 
 // step represents a single installation step.
@@ -76,6 +81,16 @@ func (m *setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err
 			return m, tea.Quit
 		}
+		// Print success message if the step was installing an app.
+		// (We exclude Homebrew and shell configuration steps.)
+		prevStep := m.steps[m.currentStep]
+		if strings.HasPrefix(prevStep.description, "Installing ") &&
+			!strings.Contains(prevStep.description, "Homebrew") {
+			// For a description like "Installing neovim..."
+			pkg := strings.TrimSuffix(strings.TrimPrefix(prevStep.description, "Installing "), "...")
+			fmt.Printf("✔ %s instalada correctamente.\n", pkg)
+		}
+
 		// Move on to the next step.
 		m.currentStep++
 		if m.currentStep < len(m.steps) {
@@ -153,9 +168,9 @@ var SetupCmd = &cobra.Command{
 		profilePath := usr.HomeDir + "/.zprofile"
 
 		var steps []step
+		brewInstalled := false
 
 		// Check if Homebrew is installed.
-		brewInstalled := false
 		if _, err := exec.LookPath("brew"); err != nil {
 			// Homebrew is not installed; add installation steps.
 			steps = append(steps, step{
@@ -171,10 +186,7 @@ var SetupCmd = &cobra.Command{
 				command:     "/bin/bash",
 				args: []string{
 					"-c",
-					fmt.Sprintf(
-						`(echo; echo 'eval "$(/opt/homebrew/bin/brew shellenv)"') >> %s`,
-						profilePath,
-					),
+					fmt.Sprintf(`(echo; echo 'eval "$(/opt/homebrew/bin/brew shellenv)"') >> %s`, profilePath),
 				},
 			})
 			steps = append(steps, step{
@@ -184,7 +196,7 @@ var SetupCmd = &cobra.Command{
 			})
 		} else {
 			brewInstalled = true
-			fmt.Println("Homebrew is already installed, skipping installation.")
+			fmt.Println("Homebrew ya se encuentra instalada, saltando instalación.")
 		}
 
 		// Append normal (formula) installation steps.
@@ -198,10 +210,9 @@ var SetupCmd = &cobra.Command{
 						args:        []string{"install", pkg},
 					})
 				} else {
-					fmt.Printf("%s is already installed, skipping installation.\n", pkg)
+					fmt.Printf("▶ %s ya se encuentra instalada.\n", pkg)
 				}
 			} else {
-				// If Homebrew wasn't installed at the start, simply add the step.
 				steps = append(steps, step{
 					description: fmt.Sprintf("Installing %s...", pkg),
 					command:     "brew",
@@ -220,7 +231,7 @@ var SetupCmd = &cobra.Command{
 						args:        []string{"install", "--cask", pkg},
 					})
 				} else {
-					fmt.Printf("%s is already installed, skipping installation.\n", pkg)
+					fmt.Printf("▶ %s ya se encuentra instalada.\n", pkg)
 				}
 			} else {
 				steps = append(steps, step{
