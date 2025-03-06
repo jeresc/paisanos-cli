@@ -50,10 +50,12 @@ var flagFrames = []string{
  █      `,
 }
 
+const brandColor = "190"
+
 // primaryBg is the Lip Gloss style used to render both the flag and text.
 var (
-	primaryBg   = lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(0)).Background(lipgloss.Color("226"))
-	primary     = lipgloss.NewStyle().Foreground(lipgloss.Color("226")).Background(lipgloss.ANSIColor(0))
+	primaryBg   = lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(0)).Background(lipgloss.Color(brandColor))
+	primary     = lipgloss.NewStyle().Foreground(lipgloss.Color(brandColor)).Background(lipgloss.ANSIColor(0))
 	username, _ = getUserName()
 )
 
@@ -139,7 +141,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the flag and the text block.
 func (m model) View() string {
 	// Render the animated flag.
-	flagView := primaryBg.BorderStyle(lipgloss.RoundedBorder()).BorderBackground(lipgloss.Color("226")).BorderForeground(lipgloss.Color("0")).Render(m.frames[m.currentFrame])
+	flagView := primaryBg.BorderStyle(lipgloss.RoundedBorder()).BorderBackground(lipgloss.Color(brandColor)).BorderForeground(lipgloss.Color("0")).Render(m.frames[m.currentFrame])
 	// Static label "Paisabot:".
 	label := primary.Render("Paisabot:")
 	// Build the dynamic text using the typewriter effect.
