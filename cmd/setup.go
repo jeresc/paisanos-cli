@@ -74,11 +74,6 @@ type setupModel struct {
 
 // Init starts the spinner and executes the first step.
 func (m *setupModel) Init() tea.Cmd {
-	if len(m.steps) == 0 {
-		m.done = true
-		return nil
-	}
-
 	if len(m.steps) > 0 {
 		return tea.Batch(m.spinner.Tick, runCommand(m.steps[m.currentStep], m.currentStep))
 	}
@@ -112,7 +107,7 @@ func (m *setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Move on to the next step.
 		m.currentStep++
-		if m.currentStep < len(m.steps) {
+		if m.currentStep <= len(m.steps) {
 			cmds = append(cmds, runCommand(m.steps[m.currentStep], m.currentStep))
 		} else {
 			m.done = true
