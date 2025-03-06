@@ -2,29 +2,46 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/user"
 	"runtime"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
 
+// ----------------------------------------------------------
+// Global style definitions for text, spinner and editor list.
+// ----------------------------------------------------------
+
 var (
-	// Global style definitions for text and spinner.
 	textStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Render
 	spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
 	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render
 	installing   = lipgloss.NewStyle().Foreground(lipgloss.Color("44")).Render
 	installed    = lipgloss.NewStyle().Foreground(lipgloss.Color("29")).Render
 	skipped      = lipgloss.NewStyle().Foreground(lipgloss.Color("246")).Render
+
+	// Styles for the editor selection list.
+	editorTitleStyle        = lipgloss.NewStyle().MarginLeft(2)
+	editorItemStyle         = lipgloss.NewStyle().PaddingLeft(4)
+	editorSelectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).
+				Foreground(lipgloss.Color("170"))
+	editorPaginationStyle = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
+	editorHelpStyle       = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
+	editorQuitTextStyle   = lipgloss.NewStyle().Margin(1, 0, 2, 4)
 )
 
-// Lists for normal (formula) and cask installations.
+// ----------------------------------------------------------
+// Installation lists (formulas and casks).
+// ----------------------------------------------------------
+
 var normalInstallations = []string{
 	"neovim",
 	"fnm",
@@ -37,7 +54,7 @@ var caskInstallations = []string{
 	"google-chrome",
 }
 
-// installingDescription returns the installation description for a package.
+// installingDescription returns a formatted installation description.
 func installingDescription(pkg string) string {
 	return installing(fmt.Sprintf("Instalando %s...", pkg))
 }
@@ -46,24 +63,22 @@ func alreadyInstalled(pkg string) string {
 	return skipped(fmt.Sprintf("■ %s ya se encuentra instalado.", pkg))
 }
 
-func successfullyInstalled(pkg string) string {
-	return installed(fmt.Sprintf("✔  %s instalado correctamente.", pkg))
-}
+// ----------------------------------------------------------
+// Step definitions for setup.
+// ----------------------------------------------------------
 
-// step represents a single installation step.
 type step struct {
 	description string   // A description of the step.
 	command     string   // The command to execute.
 	args        []string // Arguments for the command.
 }
 
-// commandResultMsg is the message returned when a command completes.
 type commandResultMsg struct {
 	stepIndex int
 	err       error
 }
 
-// setupModel is the Bubble Tea model that runs our setup steps.
+// setupModel runs our installation steps with a spinner.
 type setupModel struct {
 	spinner     spinner.Model
 	steps       []step
@@ -72,34 +87,24 @@ type setupModel struct {
 	err         error
 }
 
-// Init starts the spinner and executes the first step.
 func (m *setupModel) Init() tea.Cmd {
 	if len(m.steps) == 0 {
 		m.done = true
-
 		return nil
 	}
-
-	if len(m.steps) > 0 {
-		return tea.Batch(m.spinner.Tick, runCommand(m.steps[m.currentStep], m.currentStep))
-	}
-	return m.spinner.Tick
+	return tea.Batch(m.spinner.Tick, runCommand(m.steps[m.currentStep], m.currentStep))
 }
 
-// Update handles messages (spinner ticks and command results).
 func (m *setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// If the setup is done, ignore further messages and quit.
 	if m.done {
 		return m, tea.Quit
 	}
-
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
-		// Only schedule new ticks if not done.
 		cmds = append(cmds, cmd)
 
 	case commandResultMsg:
@@ -107,7 +112,6 @@ func (m *setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err
 			return m, tea.Quit
 		}
-		// Print success message if appropriate.
 		prevStep := m.steps[m.currentStep]
 		if strings.HasPrefix(prevStep.description, "▶ Instalando ") &&
 			!strings.Contains(prevStep.description, "Homebrew") {
@@ -122,11 +126,9 @@ func (m *setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	}
-
 	return m, tea.Batch(cmds...)
 }
 
-// View renders the current UI of the setup.
 func (m *setupModel) View() string {
 	if m.err != nil {
 		return fmt.Sprintf("\n%s\n", textStyle(fmt.Sprintf("Error: %v", m.err)))
@@ -138,12 +140,10 @@ func (m *setupModel) View() string {
 	return fmt.Sprintf("\n%s %s\n", m.spinner.View(), textStyle(desc))
 }
 
-// runCommand returns a Tea command that executes a step.
-// For the Homebrew installation step it sets NONINTERACTIVE=1.
 func runCommand(s step, index int) tea.Cmd {
 	return func() tea.Msg {
 		cmd := exec.Command(s.command, s.args...)
-		if s.description == "Installing Homebrew..." {
+		if s.description == "Instalando Homebrew..." {
 			cmd.Env = append(os.Environ(), "NONINTERACTIVE=1")
 		}
 		output, err := cmd.CombinedOutput()
@@ -157,7 +157,6 @@ func runCommand(s step, index int) tea.Cmd {
 	}
 }
 
-// newSetupModel creates a new setup model with our steps and a single spinner.
 func newSetupModel(steps []step) *setupModel {
 	sp := spinner.New()
 	sp.Style = spinnerStyle
@@ -170,13 +169,134 @@ func newSetupModel(steps []step) *setupModel {
 	}
 }
 
-// fileExists returns true if the given filename exists.
+// fileExists returns true if the given file exists.
 func fileExists(filename string) bool {
 	_, err := os.Stat(filename)
 	return err == nil
 }
 
-// SetupCmd is a Cobra command that sets up your macOS environment.
+func successfullyInstalled(pkg string) string {
+	return installed(fmt.Sprintf("■ %s se instaló correctamente.", pkg))
+}
+
+// ----------------------------------------------------------
+// Editor selection phase using a list (new phase)
+// ----------------------------------------------------------
+
+// We'll create a simple list model to let the user pick the editor.
+
+const editorListHeight = 6
+
+type editorItem string
+
+func (i editorItem) FilterValue() string { return "" }
+
+type editorDelegate struct{}
+
+func (d editorDelegate) Height() int  { return 1 }
+func (d editorDelegate) Spacing() int { return 0 }
+func (d editorDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd {
+	return nil
+}
+
+func (d editorDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	item, ok := listItem.(editorItem)
+	if !ok {
+		return
+	}
+
+	str := fmt.Sprintf("%d. %s", index+1, item)
+	renderFn := editorItemStyle.Render
+	if index == m.Index() {
+		renderFn = func(s ...string) string {
+			return editorSelectedItemStyle.Render("> " + strings.Join(s, " "))
+		}
+	}
+	fmt.Fprint(w, renderFn(str))
+}
+
+type editorModel struct {
+	list     list.Model
+	choice   string
+	quitting bool
+}
+
+func (m editorModel) Init() tea.Cmd {
+	return nil
+}
+
+func (m editorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.list.SetWidth(msg.Width)
+		return m, nil
+
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "ctrl+c":
+			m.quitting = true
+			return m, tea.Quit
+		case "enter":
+			i, ok := m.list.SelectedItem().(editorItem)
+			if ok {
+				m.choice = string(i)
+			}
+			return m, tea.Quit
+		}
+	}
+
+	var cmd tea.Cmd
+	m.list, cmd = m.list.Update(msg)
+	return m, cmd
+}
+
+func (m editorModel) View() string {
+	if m.choice != "" {
+		return editorQuitTextStyle.Render(
+			fmt.Sprintf("Has seleccionado: %s", m.choice),
+		)
+	}
+	if m.quitting {
+		return editorQuitTextStyle.Render("No se seleccionó un editor.")
+	}
+	return "\n" + m.list.View()
+}
+
+func selectEditor() (string, error) {
+	// Create list items for the available editors.
+	items := []list.Item{
+		editorItem("neovim"),
+		editorItem("cursor.ai"),
+		editorItem("vscode"),
+	}
+
+	const defaultWidth = 20
+	l := list.New(items, editorDelegate{}, defaultWidth, editorListHeight)
+	l.Title = "Selecciona el editor a instalar"
+	l.SetShowStatusBar(false)
+	l.SetFilteringEnabled(false)
+	l.Styles.Title = editorTitleStyle
+	l.Styles.PaginationStyle = editorPaginationStyle
+	l.Styles.HelpStyle = editorHelpStyle
+
+	m := editorModel{list: l}
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	finalModel, err := p.Run()
+	if err != nil {
+		return "", err
+	}
+	em, ok := finalModel.(editorModel)
+	if !ok {
+		return "", fmt.Errorf("unexpected model type")
+	}
+	return em.choice, nil
+}
+
+// ----------------------------------------------------------
+// SetupCmd Cobra command:
+// First, it asks for an editor selection, then builds the install steps.
+// ----------------------------------------------------------
+
 var SetupCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// Ensure this command runs only on macOS.
@@ -184,6 +304,35 @@ var SetupCmd = &cobra.Command{
 			fmt.Println("Este comando solo funciona en macOS.")
 			return
 		}
+
+		// ------------------------------
+		// New Phase: Select Editor
+		// ------------------------------
+		editorChoice, err := selectEditor()
+		if err != nil {
+			fmt.Printf("Error selecting editor: %v\n", err)
+			return
+		}
+		if editorChoice == "" {
+			fmt.Println("No se seleccionó ningún editor, finalizando.")
+			return
+		}
+		fmt.Printf("Editor seleccionado: %s\n", editorChoice)
+
+		// Set flags based on the selected editor.
+		selectedNeovim, selectedCursor, selectedVSCode := false, false, false
+		switch strings.ToLower(editorChoice) {
+		case "neovim":
+			selectedNeovim = true
+		case "cursor.ai":
+			selectedCursor = true
+		case "vscode":
+			selectedVSCode = true
+		}
+
+		// ------------------------------
+		// Continue with Setup
+		// ------------------------------
 
 		// Retrieve current user's home directory.
 		usr, err := user.Current()
@@ -227,8 +376,12 @@ var SetupCmd = &cobra.Command{
 
 		// Append normal (formula) installation steps.
 		for _, pkg := range normalInstallations {
+			// Si el paquete es neovim y no fue seleccionado, se omite.
+			if pkg == "neovim" && !selectedNeovim {
+				fmt.Println("Omitiendo la instalación de neovim, no se seleccionó.")
+				continue
+			}
 			if brewInstalled {
-				// Check if the package is already installed.
 				if err := exec.Command("brew", "list", pkg).Run(); err != nil {
 					steps = append(steps, step{
 						description: installingDescription(pkg),
@@ -285,10 +438,52 @@ var SetupCmd = &cobra.Command{
 			}
 		}
 
+		// Append extra installation steps for the selected editor.
+		if selectedVSCode {
+			if brewInstalled {
+				if err := exec.Command("brew", "list", "--cask", "visual-studio-code").
+					Run(); err != nil {
+					steps = append(steps, step{
+						description: installingDescription("vscode"),
+						command:     "brew",
+						args:        []string{"install", "--cask", "visual-studio-code"},
+					})
+				} else {
+					fmt.Println(alreadyInstalled("vscode"))
+				}
+			} else {
+				steps = append(steps, step{
+					description: installingDescription("vscode"),
+					command:     "brew",
+					args:        []string{"install", "--cask", "visual-studio-code"},
+				})
+			}
+		}
+
+		if selectedCursor {
+			if brewInstalled {
+				if err := exec.Command("brew", "list", "--cask", "cursor").Run(); err != nil {
+					steps = append(steps, step{
+						description: installingDescription("cursor.ai"),
+						command:     "brew",
+						args:        []string{"install", "--cask", "cursor"},
+					})
+				} else {
+					fmt.Println(alreadyInstalled("cursor.ai"))
+				}
+			} else {
+				steps = append(steps, step{
+					description: installingDescription("cursor.ai"),
+					command:     "brew",
+					args:        []string{"install", "--cask", "cursor"},
+				})
+			}
+		}
+
 		// Create and start the Bubble Tea program with our steps.
 		m := newSetupModel(steps)
-		p := tea.NewProgram(m)
-		if _, err := p.Run(); err != nil {
+		program := tea.NewProgram(m)
+		if _, err := program.Run(); err != nil {
 			fmt.Printf("Error during setup: %v\n", err)
 			os.Exit(1)
 		}
