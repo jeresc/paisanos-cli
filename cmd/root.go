@@ -4,176 +4,97 @@ import (
 	"fmt"
 	"os"
 	"os/user"
-	"strings"
 	"time"
 
-	"github.com/fatih/color"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
 
-// Constants for application settings
-const (
-	// Animation timing
-	DefaultAnimationDelay  = 40 * time.Millisecond
-	MessageTransitionDelay = 2 * time.Second
-	LoadingDuration        = 10 * time.Second
-	SpinnerDelay           = 100 * time.Millisecond
+var border = lipgloss.Border{
+	Left:        "│ ",
+	Right:       " │",
+	Top:         "─",
+	Bottom:      "─",
+	TopLeft:     "┌",
+	TopRight:    "┐",
+	BottomLeft:  "└",
+	BottomRight: "┘",
+}
 
-	// ASCII art dimensions
-	BoxWidth = 10
+// flagFrames holds the individual frames of the flag animation.
+var flagFrames = []string{
+	`╭────────╮
+│█▀▀▃▃▃│
+│█▀▀▃▃█│
+│█     │
+╰────────╯`,
+	`╭────────╮
+│ █▀▀▀▃▃ │
+│ █▀▀▀▃█ │
+│ █      │
+╰────────╯`,
+	`╭────────╮
+│ █▀▀▀▀▃ │
+│ █▀▀▀▀█ │
+│ █      │
+╰────────╯`,
+	`╭────────╮
+│ █▃▀▀▀█ │
+│ █▃▀▀▀█ │
+│ █      │
+╰────────╯`,
+	`╭────────╮
+│ █▃▃▀▀█ │
+│ █▃▃▀▀▀ │
+│ █      │
+╰────────╯`,
+	`╭────────╮
+│ █▃▃▃▀█ │
+│ █▃▃▃▀▀ │
+│ █      │
+╰────────╯`,
+	`╭────────╮
+│ █▃▃▃▃█ │
+│ █▃▃▃▃▀ │
+│ █      │
+╰────────╯`,
+	`╭────────╮
+│ █▀▃▃▃▃ │
+│ █▀▃▃▃█ │
+│ █      │
+╰────────╯`,
+}
+
+// primaryBg is the Lip Gloss style used to render both the flag and text.
+var (
+	primaryBg   = lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(0)).Background(lipgloss.Color("226"))
+	primary     = lipgloss.NewStyle().Foreground(lipgloss.Color("226"))
+	username, _ = getUserName()
 )
 
-// ColorScheme defines custom colors used in various parts of the app
-type ColorScheme struct {
-	Primary    *color.Color
-	PrimaryBg  *color.Color
-	Foreground color.Attribute
-	TitleBg    color.Attribute
-}
+// Define separate tick message types.
+type (
+	flagTickMsg time.Time
+	textTickMsg time.Time
+)
 
-// Config holds the application configuration
-type Config struct {
-	AnimationDelay time.Duration
-	NoAnimation    bool
-	ColorScheme    ColorScheme
-}
+// Define phase constants for the typewriter effect.
+const (
+	phaseTyping  = "typing"
+	phaseWaiting = "waiting"
+)
 
-// Default configuration
-var config = Config{
-	AnimationDelay: DefaultAnimationDelay,
-	NoAnimation:    false,
-	ColorScheme: ColorScheme{
-		PrimaryBg:  color.BgRGB(255, 254, 3).Add(color.FgBlack),
-		Primary:    color.RGB(255, 254, 3),
-		Foreground: color.FgBlack,
-		TitleBg:    color.BgCyan,
-	},
-}
-
-// rootCmd represents the base command when called without subcommands
-var rootCmd = &cobra.Command{
-	Use:   "paisanos",
-	Short: "Paisanos CLI tool – a friendly greeting tool",
-	Long: `Paisanos CLI is a friendly greeting tool that displays a welcome message
-with a colorful ASCII art logo. It provides a warm greeting for your system
-or application users.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		if err := displayWelcomeMessage(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-	},
-}
-
-// Execute adds all child commands to the root command and sets flags appropriately
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-}
-
-func init() {
-	// Define command-line flags
-	rootCmd.Flags().BoolVar(&config.NoAnimation, "no-animation", false,
-		"Disable text animation")
-	rootCmd.Flags().DurationVar(&config.AnimationDelay, "delay",
-		DefaultAnimationDelay,
-		"Animation delay between characters (e.g., 50ms)")
-}
-
-// displayWelcomeMessage shows the animated welcome message
-func displayWelcomeMessage() error {
-	username, err := getUserName()
-	if err != nil {
-		return err
-	}
-	paisanosLogo := config.ColorScheme.PrimaryBg.Sprint(" paisanos ")
-
-	drawPaisanosBox()
-
-	// Position cursor for welcome message
-	fmt.Print("\033[3A")  // Move up 3 lines
-	fmt.Print("\033[11C") // Move right 11 columns
-
-	// Display welcome messages with transition
-	printSlowly("Bienvenido a ", config.AnimationDelay)
-	fmt.Print(paisanosLogo)
-	printSlowly(" "+username+".", config.AnimationDelay)
-	time.Sleep(MessageTransitionDelay)
-
-	// Display second message
-	clearCurrentLine()
-	flagColor := config.ColorScheme.Primary.SprintFunc()
-	fmt.Printf("│ %s │ ", flagColor("█▀▀▃▃█"))
-	printSlowly("¡Juntos vamos a conquistar el mundo!", config.AnimationDelay)
-	time.Sleep(MessageTransitionDelay)
-
-	clearPreviousMessages()
-
-	fmt.Print(paisanosLogo + "  Secuencia de setup iniciada.\n")
-	time.Sleep(1 * time.Second)
-
-	fmt.Print("\n") // Move to a new line and add a blank line
-	showLoadingSequence("setup", "Instalando programas", "Programas instalados correctamente.", 3,
-		config.ColorScheme.TitleBg, config.ColorScheme.Foreground)
-
-	return nil
-}
-
-func padString(str string, length int) string {
-	return strings.Repeat(" ", length) + str
-}
-
-func showLoadingSequence(label, loadingMsg, completedMsg string, pad int, bgColor, fgColor color.Attribute) {
-	if config.NoAnimation {
-		fmt.Println("Loading complete!")
-		return
-	}
-
-	spinner := []rune{
-		'⠁', '⠃', '⠇', '⡇', '⣇', '⣧',
-		'⣷', '⣾', '⣹', '⢹', '⠹', '⠙', '⠉',
-	}
-
-	startTime := time.Now()
-	formattedLabel := padString(formatTitle(label, bgColor, fgColor), pad)
-
-	for time.Since(startTime) < LoadingDuration {
-		for _, char := range spinner {
-			if time.Since(startTime) >= LoadingDuration {
-				break
-			}
-
-			fmt.Printf("\r%s  %s  %c", formattedLabel, loadingMsg, char)
-			time.Sleep(SpinnerDelay)
-		}
-	}
-
-	clearCurrentLine()
-	fmt.Printf("\r%s  %s", formattedLabel, completedMsg)
-}
-
-func drawPaisanosBox() {
-	primaryColor := color.RGB(255, 254, 3).SprintFunc()
-
-	fmt.Println("╭────────╮")
-	fmt.Printf("│ %s │ %s \n", primaryColor("█▀▀▃▃▃"), primaryColor("Paisabot:"))
-	fmt.Printf("│ %s │ \n", primaryColor("█▀▀▃▃█"))
-	fmt.Printf("│ %s      │\n", primaryColor("█"))
-	fmt.Println("╰────────╯")
-}
-
-func printSlowly(text string, delay time.Duration) {
-	if config.NoAnimation {
-		fmt.Print(text)
-		return
-	}
-
-	for _, char := range text {
-		fmt.Print(string(char))
-		time.Sleep(delay)
-	}
+// model defines the Bubble Tea model.
+type model struct {
+	frames          []string
+	currentFrame    int
+	startTime       time.Time
+	phase           string    // phase can be "typing" or "waiting"
+	typewriterIndex int       // index into current message
+	messages        []string  // two messages to display in sequence
+	currentMessage  int       // index of the current message
+	waitStart       time.Time // time when waiting started
 }
 
 func getUserName() (string, error) {
@@ -184,26 +105,119 @@ func getUserName() (string, error) {
 	return currentUser.Username, nil
 }
 
-func formatTitle(title string, bgColor, fgColor color.Attribute) string {
-	return color.New(bgColor, fgColor).Sprintf(" %s ", title)
+// Init schedules both tick commands.
+func (m model) Init() tea.Cmd {
+	return tea.Batch(tickFlagCmd(), tickTextCmd())
 }
 
-func clearCurrentLine() {
-	fmt.Print("\r")     // Return to beginning of line
-	fmt.Print("\033[K") // Clear from cursor to end of line
+// Update handles messages for flag and text ticks as well as keys.
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case flagTickMsg:
+		// Update the flag frame at a 150ms rate.
+		m.currentFrame = (m.currentFrame + 1) % len(m.frames)
+		return m, tickFlagCmd()
+
+	case textTickMsg:
+		// Update the typewriter effect at a 50ms rate.
+		switch m.phase {
+		case phaseTyping:
+			// Append one character.
+			if m.typewriterIndex < len(m.messages[m.currentMessage]) {
+				m.typewriterIndex++
+			} else {
+				// When the first message is complete, wait 1 second.
+				if m.currentMessage == 0 {
+					m.phase = phaseWaiting
+					m.waitStart = time.Now()
+				}
+			}
+		case phaseWaiting:
+			// If 1 second has elapsed, immediately clear text and switch to the second message.
+			if time.Since(m.waitStart) >= 2*time.Second {
+				m.currentMessage = 1
+				m.typewriterIndex = 0
+				m.phase = phaseTyping
+			}
+		}
+		return m, tickTextCmd()
+
+	case tea.KeyMsg:
+		// Allow quitting early with "q" or Ctrl+C.
+		if msg.String() == "q" || msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+		return m, nil
+	}
+	return m, nil
 }
 
-func clearPreviousMessages() {
-	fmt.Print("\033[3A")
-	fmt.Print("\r\n")
-	clearCurrentLine()
-	fmt.Print("\r\n")
-	clearCurrentLine()
-	fmt.Print("\r\n")
-	clearCurrentLine()
-	fmt.Print("\r\n")
-	clearCurrentLine()
-	fmt.Print("\r\n")
-	clearCurrentLine()
-	fmt.Print("\033[3A")
+// View renders the flag and the text block.
+func (m model) View() string {
+	// Render the animated flag.
+	flagView := m.frames[m.currentFrame]
+	// Static label "Paisabot:".
+	label := primary.Render("Paisabot:")
+	// Build the dynamic text using the typewriter effect.
+	dynamicText := ""
+	if m.typewriterIndex <= len(m.messages[m.currentMessage]) {
+		dynamicText = m.messages[m.currentMessage][:m.typewriterIndex]
+	} else {
+		dynamicText = m.messages[m.currentMessage]
+	}
+	// Join the label and dynamic text vertically.
+	textBlock := lipgloss.JoinVertical(lipgloss.Left, label, "  "+dynamicText)
+	// Join the flag and text block horizontally with a margin.
+	combined := lipgloss.JoinHorizontal(lipgloss.Top, flagView, "\n  "+textBlock)
+	return combined
+}
+
+// tickFlagCmd returns a command for the flag animation at 150ms.
+func tickFlagCmd() tea.Cmd {
+	return tea.Tick(120*time.Millisecond, func(t time.Time) tea.Msg {
+		return flagTickMsg(t)
+	})
+}
+
+// tickTextCmd returns a command for the typewriter effect at 50ms.
+func tickTextCmd() tea.Cmd {
+	return tea.Tick(40*time.Millisecond, func(t time.Time) tea.Msg {
+		return textTickMsg(t)
+	})
+}
+
+// rootCmd is the root Cobra command.
+var rootCmd = &cobra.Command{
+	Use:   "flaganimator",
+	Short: "Animates a flag with a typewriter text effect",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("Flag animation starting...")
+		// Initialize the model with two messages.
+		m := model{
+			frames:          flagFrames,
+			currentFrame:    0,
+			startTime:       time.Now(),
+			phase:           phaseTyping,
+			typewriterIndex: 0,
+			messages: []string{
+				fmt.Sprintf("Bienvenido a paisanos, %s.", username),
+				"¡Juntos vamos a conquistar el mundo!",
+			},
+			currentMessage: 0,
+		}
+		p := tea.NewProgram(m)
+		if _, err := p.Run(); err != nil {
+			fmt.Printf("Error running program: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Flag animation stopped")
+	},
+}
+
+// Execute runs the Cobra command.
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
