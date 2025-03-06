@@ -25,13 +25,10 @@ const (
 
 // ColorScheme defines custom colors used in various parts of the app
 type ColorScheme struct {
-	FlagColor          color.Attribute
-	LogoBackground     color.Attribute
-	LogoForeground     color.Attribute
-	TitleBackground    color.Attribute
-	TitleForeground    color.Attribute
-	HomebrewBackground color.Attribute
-	HomebrewForeground color.Attribute
+	Primary    *color.Color
+	PrimaryBg  *color.Color
+	Foreground color.Attribute
+	TitleBg    color.Attribute
 }
 
 // Config holds the application configuration
@@ -46,13 +43,10 @@ var config = Config{
 	AnimationDelay: DefaultAnimationDelay,
 	NoAnimation:    false,
 	ColorScheme: ColorScheme{
-		FlagColor:          color.FgHiGreen,
-		LogoBackground:     color.BgHiGreen,
-		LogoForeground:     color.FgBlack,
-		TitleBackground:    color.BgHiCyan,
-		TitleForeground:    color.FgBlack,
-		HomebrewBackground: color.BgYellow,
-		HomebrewForeground: color.FgBlack,
+		PrimaryBg:  color.BgRGB(255, 254, 3).Add(color.FgBlack),
+		Primary:    color.RGB(255, 254, 3),
+		Foreground: color.FgBlack,
+		TitleBg:    color.BgCyan,
 	},
 }
 
@@ -94,11 +88,8 @@ func displayWelcomeMessage() error {
 	if err != nil {
 		return err
 	}
+	paisanosLogo := config.ColorScheme.PrimaryBg.Sprint(" paisanos ")
 
-	paisanosLogo := formatTitle("paisanos", config.ColorScheme.LogoBackground, config.ColorScheme.LogoForeground)
-
-	// Clear the screen and draw initial elements
-	clearScreen()
 	drawPaisanosBox()
 
 	// Position cursor for welcome message
@@ -113,27 +104,17 @@ func displayWelcomeMessage() error {
 
 	// Display second message
 	clearCurrentLine()
-	flagColor := color.New(config.ColorScheme.FlagColor).SprintFunc()
+	flagColor := config.ColorScheme.Primary.SprintFunc()
 	fmt.Printf("│ %s │ ", flagColor("█▀▀▃▃█"))
 	printSlowly("¡Juntos vamos a conquistar el mundo!", config.AnimationDelay)
 	time.Sleep(MessageTransitionDelay)
 
-	// Show loading sequences
-	clearScreen()
-	fmt.Print("\n")
 	fmt.Print(paisanosLogo + "  Secuencia de setup iniciada.\n")
 	time.Sleep(1 * time.Second)
 
-	fmt.Print("\n")
-	showLoadingSequence("brew", "Instalando homebrew", "Homebrew instalado correctamente.", 4,
-		config.ColorScheme.HomebrewBackground, config.ColorScheme.HomebrewForeground)
-	time.Sleep(2 * time.Second)
-
-	fmt.Print("\n\n")
 	showLoadingSequence("setup", "Instalando programas", "Programas instalados correctamente.", 3,
-		config.ColorScheme.TitleBackground, config.ColorScheme.TitleForeground)
+		config.ColorScheme.TitleBg, config.ColorScheme.Foreground)
 
-	fmt.Print("\n\n")
 	return nil
 }
 
@@ -141,7 +122,6 @@ func padString(str string, length int) string {
 	return strings.Repeat(" ", length) + str
 }
 
-// showLoadingSequence displays an animated loading sequence
 func showLoadingSequence(label, loadingMsg, completedMsg string, pad int, bgColor, fgColor color.Attribute) {
 	if config.NoAnimation {
 		fmt.Println("Loading complete!")
@@ -171,21 +151,16 @@ func showLoadingSequence(label, loadingMsg, completedMsg string, pad int, bgColo
 	fmt.Printf("\r%s  %s", formattedLabel, completedMsg)
 }
 
-// drawPaisanosBox prints the ASCII art box with logo
 func drawPaisanosBox() {
-	flagColor := color.New(config.ColorScheme.FlagColor).SprintFunc()
-	boldColorText := color.New(config.ColorScheme.FlagColor, color.Bold).SprintFunc()
+	primaryColor := color.RGB(255, 254, 3).SprintFunc()
 
 	fmt.Println("╭────────╮")
-	fmt.Printf("│ %s │ %s \n", flagColor("█▀▀▃▃▃"), boldColorText("Paisabot:"))
-	fmt.Printf("│ %s │ \n", flagColor("█▀▀▃▃█"))
-	fmt.Printf("│ %s      │\n", flagColor("█"))
+	fmt.Printf("│ %s │ %s \n", primaryColor("█▀▀▃▃▃"), primaryColor("Paisabot:"))
+	fmt.Printf("│ %s │ \n", primaryColor("█▀▀▃▃█"))
+	fmt.Printf("│ %s      │\n", primaryColor("█"))
 	fmt.Println("╰────────╯")
 }
 
-// Helper functions
-
-// printSlowly prints text gradually, character by character
 func printSlowly(text string, delay time.Duration) {
 	if config.NoAnimation {
 		fmt.Print(text)
@@ -198,7 +173,6 @@ func printSlowly(text string, delay time.Duration) {
 	}
 }
 
-// getUserName retrieves the current user's name
 func getUserName() (string, error) {
 	currentUser, err := user.Current()
 	if err != nil {
@@ -207,18 +181,24 @@ func getUserName() (string, error) {
 	return currentUser.Username, nil
 }
 
-// formatTitle formats a title with the specified colors
 func formatTitle(title string, bgColor, fgColor color.Attribute) string {
 	return color.New(bgColor, fgColor).Sprintf(" %s ", title)
 }
 
-// clearCurrentLine clears the current terminal line
 func clearCurrentLine() {
 	fmt.Print("\r")     // Return to beginning of line
 	fmt.Print("\033[K") // Clear from cursor to end of line
 }
 
-// clearScreen clears the entire terminal screen
-func clearScreen() {
-	fmt.Print("\033[H\033[2J")
+func clearPreviousMessages() {
+	// Move to position of first message
+	fmt.Print("\033[2A") // Move up 2 lines to get to first message line
+
+	// Clear both message lines
+	clearCurrentLine()   // Clear first message line
+	fmt.Print("\033[1B") // Move down 1 line
+	clearCurrentLine()   // Clear second message line
+
+	// Reposition cursor for new messages
+	fmt.Print("\033[1A") // Move back up to start position for new messages
 }
