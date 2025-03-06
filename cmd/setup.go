@@ -249,7 +249,7 @@ var SetupCmd = &cobra.Command{
 		if options.Editor.Choice == "neovim" {
 			normalInstallations = append(normalInstallations, "neovim")
 		} else {
-			normalInstallations = append(normalInstallations, options.Editor.Choice)
+			caskInstallations = append(caskInstallations, options.Editor.Choice)
 		}
 
 		// Append normal (formula) installation steps.
