@@ -12,8 +12,8 @@ import (
 )
 
 var border = lipgloss.Border{
-	Left:        "│ ",
-	Right:       " │",
+	Left:        "│",
+	Right:       "│",
 	Top:         "─",
 	Bottom:      "─",
 	TopLeft:     "┌",
@@ -24,46 +24,30 @@ var border = lipgloss.Border{
 
 // flagFrames holds the individual frames of the flag animation.
 var flagFrames = []string{
-	`╭────────╮
-│█▀▀▃▃▃│
-│█▀▀▃▃█│
-│█     │
-╰────────╯`,
-	`╭────────╮
-│ █▀▀▀▃▃ │
-│ █▀▀▀▃█ │
-│ █      │
-╰────────╯`,
-	`╭────────╮
-│ █▀▀▀▀▃ │
-│ █▀▀▀▀█ │
-│ █      │
-╰────────╯`,
-	`╭────────╮
-│ █▃▀▀▀█ │
-│ █▃▀▀▀█ │
-│ █      │
-╰────────╯`,
-	`╭────────╮
-│ █▃▃▀▀█ │
-│ █▃▃▀▀▀ │
-│ █      │
-╰────────╯`,
-	`╭────────╮
-│ █▃▃▃▀█ │
-│ █▃▃▃▀▀ │
-│ █      │
-╰────────╯`,
-	`╭────────╮
-│ █▃▃▃▃█ │
-│ █▃▃▃▃▀ │
-│ █      │
-╰────────╯`,
-	`╭────────╮
-│ █▀▃▃▃▃ │
-│ █▀▃▃▃█ │
-│ █      │
-╰────────╯`,
+	` █▀▀▃▃▃ 
+ █▀▀▃▃█ 
+ █      `,
+	` █▀▀▀▃▃ 
+ █▀▀▀▃█ 
+ █      `,
+	` █▀▀▀▀▃ 
+ █▀▀▀▀█ 
+ █      `,
+	` █▃▀▀▀█ 
+ █▃▀▀▀█ 
+ █      `,
+	` █▃▃▀▀█ 
+ █▃▃▀▀▀ 
+ █      `,
+	` █▃▃▃▀█ 
+ █▃▃▃▀▀ 
+ █      `,
+	` █▃▃▃▃█ 
+ █▃▃▃▃▀ 
+ █      `,
+	` █▀▃▃▃▃ 
+ █▀▃▃▃█ 
+ █      `,
 }
 
 // primaryBg is the Lip Gloss style used to render both the flag and text.
@@ -155,7 +139,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the flag and the text block.
 func (m model) View() string {
 	// Render the animated flag.
-	flagView := m.frames[m.currentFrame]
+	flagView := primary.BorderStyle(border).Render(m.frames[m.currentFrame])
 	// Static label "Paisabot:".
 	label := primary.Render("Paisabot:")
 	// Build the dynamic text using the typewriter effect.
