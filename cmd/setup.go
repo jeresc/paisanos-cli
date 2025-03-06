@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"os/user"
 	"paisa-welcome/cmd/ui/multiInput"
-	"runtime"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -187,10 +186,10 @@ func fileExists(filename string) bool {
 var SetupCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// Ensure this command runs only on macOS.
-		if runtime.GOOS != "darwin" {
-			fmt.Println("Este comando solo funciona en macOS.")
-			return
-		}
+		// if runtime.GOOS != "darwin" {
+		// 	fmt.Println("Este comando solo funciona en macOS.")
+		// 	return
+		// }
 
 		listOfEditors := listOptions{
 			options: []string{"neovim", "cursor", "visual-studio-code"},
@@ -204,6 +203,13 @@ var SetupCmd = &cobra.Command{
 		if _, err := tprogram.Run(); err != nil {
 			fmt.Printf("Error during setup: %v\n", err)
 			os.Exit(1)
+		}
+
+		if options.Editor.Choice == "neovim" {
+			fmt.Println("Ninja neovim detectado 🥷")
+			normalInstallations = append(normalInstallations, "neovim")
+		} else {
+			caskInstallations = append(caskInstallations, options.Editor.Choice)
 		}
 
 		// Retrieve current user's home directory.
@@ -244,12 +250,6 @@ var SetupCmd = &cobra.Command{
 		} else {
 			brewInstalled = true
 			fmt.Println("Homebrew ya se encuentra instalada, saltando instalación.")
-		}
-
-		if options.Editor.Choice == "neovim" {
-			normalInstallations = append(normalInstallations, "neovim")
-		} else {
-			caskInstallations = append(caskInstallations, options.Editor.Choice)
 		}
 
 		// Append normal (formula) installation steps.

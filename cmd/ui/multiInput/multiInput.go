@@ -65,6 +65,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "y":
 			if len(m.selected) == 1 {
+				for selectedKey := range m.selected {
+					m.choice.Update(m.choices[selectedKey])
+					m.cursor = selectedKey
+				}
 				return m, tea.Quit
 			}
 		}
