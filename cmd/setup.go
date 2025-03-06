@@ -27,7 +27,6 @@ var (
 
 // Lists for normal (formula) and cask installations.
 var normalInstallations = []string{
-	"neovim",
 	"fnm",
 }
 
@@ -194,7 +193,7 @@ var SetupCmd = &cobra.Command{
 		}
 
 		listOfEditors := listOptions{
-			options: []string{"neovim", "cursor.ai", "vscode"},
+			options: []string{"neovim", "cursor", "visual-studio-code"},
 		}
 
 		options := Options{
@@ -245,6 +244,12 @@ var SetupCmd = &cobra.Command{
 		} else {
 			brewInstalled = true
 			fmt.Println("Homebrew ya se encuentra instalada, saltando instalación.")
+		}
+
+		if options.Editor.Choice == "neovim" {
+			normalInstallations = append(normalInstallations, "neovim")
+		} else {
+			normalInstallations = append(normalInstallations, options.Editor.Choice)
 		}
 
 		// Append normal (formula) installation steps.
