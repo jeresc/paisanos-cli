@@ -19,9 +19,9 @@ var (
 	textStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Render
 	spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
 	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render
-	installing   = lipgloss.NewStyle().Foreground(lipgloss.Color("44"))
-	installed    = lipgloss.NewStyle().Foreground(lipgloss.Color("29"))
-	skipped      = lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
+	installing   = lipgloss.NewStyle().Foreground(lipgloss.Color("44")).Render
+	installed    = lipgloss.NewStyle().Foreground(lipgloss.Color("29")).Render
+	skipped      = lipgloss.NewStyle().Foreground(lipgloss.Color("246")).Render
 )
 
 // Lists for normal (formula) and cask installations.
@@ -39,15 +39,15 @@ var caskInstallations = []string{
 
 // installingDescription returns the installation description for a package.
 func installingDescription(pkg string) string {
-	return installing.Render(fmt.Sprintf("Instalando %s...", pkg))
+	return installing(fmt.Sprintf("Instalando %s...", pkg))
 }
 
 func alreadyInstalled(pkg string) string {
-	return skipped.Render(fmt.Sprintf("■ %s ya se encuentra instalado.", pkg))
+	return skipped(fmt.Sprintf("■ %s ya se encuentra instalado.", pkg))
 }
 
 func successfullyInstalled(pkg string) string {
-	return installed.Render(fmt.Sprintf("✔ %s instalado correctamente.", pkg))
+	return installed(fmt.Sprintf("✔  %s instalado correctamente.", pkg))
 }
 
 // step represents a single installation step.
@@ -74,6 +74,11 @@ type setupModel struct {
 
 // Init starts the spinner and executes the first step.
 func (m *setupModel) Init() tea.Cmd {
+	if len(m.steps) == 0 {
+		m.done = true
+		return nil
+	}
+
 	if len(m.steps) > 0 {
 		return tea.Batch(m.spinner.Tick, runCommand(m.steps[m.currentStep], m.currentStep))
 	}
@@ -124,7 +129,7 @@ func (m *setupModel) View() string {
 		return fmt.Sprintf("\n%s\n", textStyle(fmt.Sprintf("Error: %v", m.err)))
 	}
 	if m.done {
-		return textStyle("\nSetup complete!\n")
+		return textStyle("\nTu setup se ha completado correctamente 🚀\n")
 	}
 	desc := m.steps[m.currentStep].description
 	return fmt.Sprintf("\n%s %s\n", m.spinner.View(), textStyle(desc))
