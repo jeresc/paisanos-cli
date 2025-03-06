@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"os/user"
 	"paisa-welcome/cmd/ui/multiInput"
+	"runtime"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -186,10 +187,10 @@ func fileExists(filename string) bool {
 var SetupCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// Ensure this command runs only on macOS.
-		// if runtime.GOOS != "darwin" {
-		// 	fmt.Println("Este comando solo funciona en macOS.")
-		// 	return
-		// }
+		if runtime.GOOS != "darwin" {
+			fmt.Println("Este comando solo funciona en macOS.")
+			return
+		}
 
 		listOfEditors := listOptions{
 			options: []string{"neovim", "cursor", "visual-studio-code"},
