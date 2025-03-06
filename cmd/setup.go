@@ -39,15 +39,15 @@ var caskInstallations = []string{
 
 // installingDescription returns the installation description for a package.
 func installingDescription(pkg string) string {
-	return installing.Render(fmt.Sprintf("▶ Instalando %s...", pkg))
+	return installing.Render(fmt.Sprintf("Instalando %s...\n", pkg))
 }
 
 func alreadyInstalled(pkg string) string {
-	return skipped.Render(fmt.Sprintf("■ %s ya se encuentra instalado.", pkg))
+	return skipped.Render(fmt.Sprintf("■ %s ya se encuentra instalado.\n", pkg))
 }
 
 func successfullyInstalled(pkg string) string {
-	return installed.Render(fmt.Sprintf("✔ %s instalado correctamente.", pkg))
+	return installed.Render(fmt.Sprintf("✔ %s instalado correctamente.\n", pkg))
 }
 
 // step represents a single installation step.
