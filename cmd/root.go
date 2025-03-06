@@ -14,14 +14,11 @@ import (
 const (
 	// Animation settings
 	DefaultAnimationDelay  = 40 * time.Millisecond
-	MessageTransitionDelay = 2 * time.Second
+	MessageTransitionDelay = 3 * time.Second
 
 	// ASCII art dimensions
 	BoxWidth       = 10
 	MessageLinePos = 2
-
-	// Version info
-	Version = "1.0.0"
 )
 
 // Configuration for the application
@@ -83,9 +80,10 @@ func getUserName() (string, error) {
 // drawPaisanosBox draws the ASCII art box with the paisanos logo
 func drawPaisanosBox() {
 	flagColor := color.New(config.ColorScheme.FlagColor).SprintFunc()
+	boldColorText := color.New(config.ColorScheme.FlagColor, color.Bold).SprintFunc()
 
 	fmt.Println("╭────────╮")
-	fmt.Printf("│ %s │ Paisabot:\n", flagColor("█▀▀▃▃▃"))
+	fmt.Printf("│ %s │ %s \n", flagColor("█▀▀▃▃▃"), boldColorText("Paisabot:"))
 	fmt.Printf("│ %s │ \n", flagColor("█▀▀▃▃█"))
 	fmt.Printf("│ %s      │\n", flagColor("▀"))
 	fmt.Println("╰────────╯")
@@ -152,11 +150,6 @@ var rootCmd = &cobra.Command{
 with a colorful ASCII art logo. It's designed to provide a warm welcome
 to users of your system or application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if config.ShowVersion {
-			fmt.Printf("Paisanos CLI v%s\n", Version)
-			return
-		}
-
 		if err := displayWelcomeMessage(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -176,5 +169,4 @@ func init() {
 	// Define command-line flags
 	rootCmd.Flags().BoolVar(&config.NoAnimation, "no-animation", false, "Disable text animation")
 	rootCmd.Flags().DurationVar(&config.AnimationDelay, "delay", DefaultAnimationDelay, "Animation delay between characters (e.g., 50ms)")
-	rootCmd.Flags().BoolVarP(&config.ShowVersion, "version", "v", false, "Show version information")
 }
