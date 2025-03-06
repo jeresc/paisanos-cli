@@ -39,15 +39,15 @@ var caskInstallations = []string{
 
 // installingDescription returns the installation description for a package.
 func installingDescription(pkg string) string {
-	return installing.Render(fmt.Sprintf("Instalando %s...\n", pkg))
+	return installing.Render(fmt.Sprintf("Instalando %s...", pkg))
 }
 
 func alreadyInstalled(pkg string) string {
-	return skipped.Render(fmt.Sprintf("■ %s ya se encuentra instalado.\n", pkg))
+	return skipped.Render(fmt.Sprintf("■ %s ya se encuentra instalado.", pkg))
 }
 
 func successfullyInstalled(pkg string) string {
-	return installed.Render(fmt.Sprintf("✔ %s instalado correctamente.\n", pkg))
+	return installed.Render(fmt.Sprintf("✔ %s instalado correctamente.", pkg))
 }
 
 // step represents a single installation step.
@@ -103,7 +103,7 @@ func (m *setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			!strings.Contains(prevStep.description, "Homebrew") {
 			// Extract package name by removing the prefix and suffix.
 			pkg := strings.TrimSuffix(strings.TrimPrefix(prevStep.description, "▶ Instalando "), "...")
-			fmt.Print(successfullyInstalled(pkg))
+			fmt.Println(successfullyInstalled(pkg))
 		}
 		// Move on to the next step.
 		m.currentStep++
@@ -228,7 +228,7 @@ var SetupCmd = &cobra.Command{
 						args:        []string{"install", pkg},
 					})
 				} else {
-					fmt.Print(alreadyInstalled(pkg))
+					fmt.Println(alreadyInstalled(pkg))
 				}
 			} else {
 				steps = append(steps, step{
@@ -245,7 +245,7 @@ var SetupCmd = &cobra.Command{
 				// Special check for Google Chrome.
 				if pkg == "google-chrome" {
 					if fileExists("/Applications/Google Chrome.app") {
-						fmt.Print(alreadyInstalled(pkg))
+						fmt.Println(alreadyInstalled(pkg))
 						continue
 					}
 					if err := exec.Command("brew", "list", "--cask", pkg).Run(); err != nil {
@@ -255,7 +255,7 @@ var SetupCmd = &cobra.Command{
 							args:        []string{"install", "--cask", pkg},
 						})
 					} else {
-						fmt.Print(alreadyInstalled(pkg))
+						fmt.Println(alreadyInstalled(pkg))
 					}
 				} else {
 					if err := exec.Command("brew", "list", "--cask", pkg).Run(); err != nil {
@@ -265,7 +265,7 @@ var SetupCmd = &cobra.Command{
 							args:        []string{"install", "--cask", pkg},
 						})
 					} else {
-						fmt.Print(alreadyInstalled(pkg))
+						fmt.Println(alreadyInstalled(pkg))
 					}
 				}
 			} else {
