@@ -74,6 +74,12 @@ type setupModel struct {
 
 // Init starts the spinner and executes the first step.
 func (m *setupModel) Init() tea.Cmd {
+	if len(m.steps) == 0 {
+		m.done = true
+
+		return nil
+	}
+
 	if len(m.steps) > 0 {
 		return tea.Batch(m.spinner.Tick, runCommand(m.steps[m.currentStep], m.currentStep))
 	}
@@ -82,32 +88,34 @@ func (m *setupModel) Init() tea.Cmd {
 
 // Update handles messages (spinner ticks and command results).
 func (m *setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// If the setup is done, ignore further messages and quit.
+	if m.done {
+		return m, tea.Quit
+	}
+
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
+		// Only schedule new ticks if not done.
 		cmds = append(cmds, cmd)
 
 	case commandResultMsg:
-		// If any command fails, capture the error and quit.
 		if msg.err != nil {
 			m.err = msg.err
 			return m, tea.Quit
 		}
-		// Print success message if the step was installing an app.
-		// (Excludes Homebrew and shell configuration steps.)
+		// Print success message if appropriate.
 		prevStep := m.steps[m.currentStep]
 		if strings.HasPrefix(prevStep.description, "▶ Instalando ") &&
 			!strings.Contains(prevStep.description, "Homebrew") {
-			// Extract package name by removing the prefix and suffix.
 			pkg := strings.TrimSuffix(strings.TrimPrefix(prevStep.description, "▶ Instalando "), "...")
 			fmt.Println(successfullyInstalled(pkg))
 		}
-		// Move on to the next step.
 		m.currentStep++
-		if m.currentStep <= len(m.steps) {
+		if m.currentStep < len(m.steps) {
 			cmds = append(cmds, runCommand(m.steps[m.currentStep], m.currentStep))
 		} else {
 			m.done = true
