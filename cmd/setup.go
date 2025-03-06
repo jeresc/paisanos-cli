@@ -19,6 +19,9 @@ var (
 	textStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Render
 	spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
 	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render
+	installing   = lipgloss.NewStyle().Foreground(lipgloss.Color("44"))
+	installed    = lipgloss.NewStyle().Foreground(lipgloss.Color("29"))
+	skipped      = lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
 )
 
 // Lists for normal (formula) and cask installations.
@@ -36,7 +39,15 @@ var caskInstallations = []string{
 
 // installingDescription returns the installation description for a package.
 func installingDescription(pkg string) string {
-	return fmt.Sprintf("▶ Instalando %s...", pkg)
+	return installing.Render(fmt.Sprintf("▶ Instalando %s...", pkg))
+}
+
+func alreadyInstalled(pkg string) string {
+	return skipped.Render(fmt.Sprintf("■ %s ya se encuentra instalado.", pkg))
+}
+
+func successfullyInstalled(pkg string) string {
+	return installed.Render(fmt.Sprintf("✔ %s instalado correctamente.", pkg))
 }
 
 // step represents a single installation step.
@@ -92,7 +103,7 @@ func (m *setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			!strings.Contains(prevStep.description, "Homebrew") {
 			// Extract package name by removing the prefix and suffix.
 			pkg := strings.TrimSuffix(strings.TrimPrefix(prevStep.description, "▶ Instalando "), "...")
-			fmt.Printf("✔ %s instalada correctamente.\n", pkg)
+			fmt.Print(successfullyInstalled(pkg))
 		}
 		// Move on to the next step.
 		m.currentStep++
@@ -162,7 +173,7 @@ var SetupCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// Ensure this command runs only on macOS.
 		if runtime.GOOS != "darwin" {
-			fmt.Println("This setup command only works on macOS.")
+			fmt.Println("Este comando solo funciona en macOS.")
 			return
 		}
 
@@ -189,7 +200,7 @@ var SetupCmd = &cobra.Command{
 				},
 			})
 			steps = append(steps, step{
-				description: "Configurando Homebrew",
+				description: "Configurando Homebrew...",
 				command:     "/bin/bash",
 				args: []string{
 					"-c",
@@ -217,7 +228,7 @@ var SetupCmd = &cobra.Command{
 						args:        []string{"install", pkg},
 					})
 				} else {
-					fmt.Printf("▶ ■%s ya se encuentra instalada.\n", pkg)
+					fmt.Print(alreadyInstalled(pkg))
 				}
 			} else {
 				steps = append(steps, step{
@@ -234,7 +245,7 @@ var SetupCmd = &cobra.Command{
 				// Special check for Google Chrome.
 				if pkg == "google-chrome" {
 					if fileExists("/Applications/Google Chrome.app") {
-						fmt.Printf("■ %s ya se encuentra instalada.\n", pkg)
+						fmt.Print(alreadyInstalled(pkg))
 						continue
 					}
 					if err := exec.Command("brew", "list", "--cask", pkg).Run(); err != nil {
@@ -244,7 +255,7 @@ var SetupCmd = &cobra.Command{
 							args:        []string{"install", "--cask", pkg},
 						})
 					} else {
-						fmt.Printf("▶ %s ya se encuentra instalada.\n", pkg)
+						fmt.Print(alreadyInstalled(pkg))
 					}
 				} else {
 					if err := exec.Command("brew", "list", "--cask", pkg).Run(); err != nil {
@@ -254,7 +265,7 @@ var SetupCmd = &cobra.Command{
 							args:        []string{"install", "--cask", pkg},
 						})
 					} else {
-						fmt.Printf("▶ %s ya se encuentra instalada.\n", pkg)
+						fmt.Print(alreadyInstalled(pkg))
 					}
 				}
 			} else {
