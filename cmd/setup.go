@@ -24,8 +24,7 @@ var (
 // Lists for normal (formula) and cask installations.
 var normalInstallations = []string{
 	"neovim",
-	"git",
-	"node",
+	"fnm",
 }
 
 var caskInstallations = []string{
@@ -33,6 +32,11 @@ var caskInstallations = []string{
 	"notion",
 	"slack",
 	"google-chrome",
+}
+
+// installingDescription returns the installation description for a package.
+func installingDescription(pkg string) string {
+	return fmt.Sprintf("▶ Instalando %s...", pkg)
 }
 
 // step represents a single installation step.
@@ -82,15 +86,14 @@ func (m *setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		// Print success message if the step was installing an app.
-		// (We exclude Homebrew and shell configuration steps.)
+		// (Excludes Homebrew and shell configuration steps.)
 		prevStep := m.steps[m.currentStep]
-		if strings.HasPrefix(prevStep.description, "Installing ") &&
+		if strings.HasPrefix(prevStep.description, "▶ Instalando ") &&
 			!strings.Contains(prevStep.description, "Homebrew") {
-			// For a description like "Installing neovim..."
-			pkg := strings.TrimSuffix(strings.TrimPrefix(prevStep.description, "Installing "), "...")
+			// Extract package name by removing the prefix and suffix.
+			pkg := strings.TrimSuffix(strings.TrimPrefix(prevStep.description, "▶ Instalando "), "...")
 			fmt.Printf("✔ %s instalada correctamente.\n", pkg)
 		}
-
 		// Move on to the next step.
 		m.currentStep++
 		if m.currentStep < len(m.steps) {
@@ -148,10 +151,14 @@ func newSetupModel(steps []step) *setupModel {
 	}
 }
 
+// fileExists returns true if the given filename exists.
+func fileExists(filename string) bool {
+	_, err := os.Stat(filename)
+	return err == nil
+}
+
 // SetupCmd is a Cobra command that sets up your macOS environment.
 var SetupCmd = &cobra.Command{
-	Use:   "setup",
-	Short: "Set up macOS by installing Homebrew and required applications",
 	Run: func(cmd *cobra.Command, args []string) {
 		// Ensure this command runs only on macOS.
 		if runtime.GOOS != "darwin" {
@@ -174,7 +181,7 @@ var SetupCmd = &cobra.Command{
 		if _, err := exec.LookPath("brew"); err != nil {
 			// Homebrew is not installed; add installation steps.
 			steps = append(steps, step{
-				description: "Installing Homebrew...",
+				description: "Instalando Homebrew...",
 				command:     "/bin/bash",
 				args: []string{
 					"-c",
@@ -182,7 +189,7 @@ var SetupCmd = &cobra.Command{
 				},
 			})
 			steps = append(steps, step{
-				description: "Appending Homebrew environment to .zprofile...",
+				description: "Configurando Homebrew",
 				command:     "/bin/bash",
 				args: []string{
 					"-c",
@@ -190,7 +197,7 @@ var SetupCmd = &cobra.Command{
 				},
 			})
 			steps = append(steps, step{
-				description: "Evaluating Homebrew environment...",
+				description: "Evaluando entorno de Homebrew...",
 				command:     "/bin/bash",
 				args:        []string{"-c", `eval "$(/opt/homebrew/bin/brew shellenv)"`},
 			})
@@ -205,16 +212,16 @@ var SetupCmd = &cobra.Command{
 				// Check if the package is already installed.
 				if err := exec.Command("brew", "list", pkg).Run(); err != nil {
 					steps = append(steps, step{
-						description: fmt.Sprintf("Installing %s...", pkg),
+						description: installingDescription(pkg),
 						command:     "brew",
 						args:        []string{"install", pkg},
 					})
 				} else {
-					fmt.Printf("▶ %s ya se encuentra instalada.\n", pkg)
+					fmt.Printf("▶ ■%s ya se encuentra instalada.\n", pkg)
 				}
 			} else {
 				steps = append(steps, step{
-					description: fmt.Sprintf("Installing %s...", pkg),
+					description: installingDescription(pkg),
 					command:     "brew",
 					args:        []string{"install", pkg},
 				})
@@ -224,18 +231,35 @@ var SetupCmd = &cobra.Command{
 		// Append cask installation steps.
 		for _, pkg := range caskInstallations {
 			if brewInstalled {
-				if err := exec.Command("brew", "list", "--cask", pkg).Run(); err != nil {
-					steps = append(steps, step{
-						description: fmt.Sprintf("Installing %s...", pkg),
-						command:     "brew",
-						args:        []string{"install", "--cask", pkg},
-					})
+				// Special check for Google Chrome.
+				if pkg == "google-chrome" {
+					if fileExists("/Applications/Google Chrome.app") {
+						fmt.Printf("■ %s ya se encuentra instalada.\n", pkg)
+						continue
+					}
+					if err := exec.Command("brew", "list", "--cask", pkg).Run(); err != nil {
+						steps = append(steps, step{
+							description: installingDescription(pkg),
+							command:     "brew",
+							args:        []string{"install", "--cask", pkg},
+						})
+					} else {
+						fmt.Printf("▶ %s ya se encuentra instalada.\n", pkg)
+					}
 				} else {
-					fmt.Printf("▶ %s ya se encuentra instalada.\n", pkg)
+					if err := exec.Command("brew", "list", "--cask", pkg).Run(); err != nil {
+						steps = append(steps, step{
+							description: installingDescription(pkg),
+							command:     "brew",
+							args:        []string{"install", "--cask", pkg},
+						})
+					} else {
+						fmt.Printf("▶ %s ya se encuentra instalada.\n", pkg)
+					}
 				}
 			} else {
 				steps = append(steps, step{
-					description: fmt.Sprintf("Installing %s...", pkg),
+					description: installingDescription(pkg),
 					command:     "brew",
 					args:        []string{"install", "--cask", pkg},
 				})
