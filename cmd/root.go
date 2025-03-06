@@ -109,9 +109,12 @@ func displayWelcomeMessage() error {
 	printSlowly("¡Juntos vamos a conquistar el mundo!", config.AnimationDelay)
 	time.Sleep(MessageTransitionDelay)
 
+	clearPreviousMessages()
+
 	fmt.Print(paisanosLogo + "  Secuencia de setup iniciada.\n")
 	time.Sleep(1 * time.Second)
 
+	fmt.Print("\n") // Move to a new line and add a blank line
 	showLoadingSequence("setup", "Instalando programas", "Programas instalados correctamente.", 3,
 		config.ColorScheme.TitleBg, config.ColorScheme.Foreground)
 
@@ -191,14 +194,16 @@ func clearCurrentLine() {
 }
 
 func clearPreviousMessages() {
-	// Move to position of first message
-	fmt.Print("\033[2A") // Move up 2 lines to get to first message line
-
-	// Clear both message lines
-	clearCurrentLine()   // Clear first message line
-	fmt.Print("\033[1B") // Move down 1 line
-	clearCurrentLine()   // Clear second message line
-
-	// Reposition cursor for new messages
-	fmt.Print("\033[1A") // Move back up to start position for new messages
+	fmt.Print("\033[3A")
+	fmt.Print("\r\n")
+	clearCurrentLine()
+	fmt.Print("\r\n")
+	clearCurrentLine()
+	fmt.Print("\r\n")
+	clearCurrentLine()
+	fmt.Print("\r\n")
+	clearCurrentLine()
+	fmt.Print("\r\n")
+	clearCurrentLine()
+	fmt.Print("\033[3A")
 }
