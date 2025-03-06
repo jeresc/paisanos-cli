@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"paisa-welcome/cmd/ui/multiInput"
 	"runtime"
 	"strings"
 
@@ -37,6 +38,16 @@ var caskInstallations = []string{
 	"google-chrome",
 }
 
+type Options struct {
+	Editor *multiInput.Selection
+}
+
+type step struct {
+	description string   // A description of the step.
+	command     string   // The command to execute.
+	args        []string // Arguments for the command.
+}
+
 // installingDescription returns the installation description for a package.
 func installingDescription(pkg string) string {
 	return installing(fmt.Sprintf("Instalando %s...", pkg))
@@ -48,13 +59,6 @@ func alreadyInstalled(pkg string) string {
 
 func successfullyInstalled(pkg string) string {
 	return installed(fmt.Sprintf("✔  %s instalado correctamente.", pkg))
-}
-
-// step represents a single installation step.
-type step struct {
-	description string   // A description of the step.
-	command     string   // The command to execute.
-	args        []string // Arguments for the command.
 }
 
 // commandResultMsg is the message returned when a command completes.
@@ -170,6 +174,10 @@ func newSetupModel(steps []step) *setupModel {
 	}
 }
 
+type listOptions struct {
+	options []string
+}
+
 // fileExists returns true if the given filename exists.
 func fileExists(filename string) bool {
 	_, err := os.Stat(filename)
@@ -183,6 +191,20 @@ var SetupCmd = &cobra.Command{
 		if runtime.GOOS != "darwin" {
 			fmt.Println("Este comando solo funciona en macOS.")
 			return
+		}
+
+		listOfEditors := listOptions{
+			options: []string{"neovim", "cursor.ai", "vscode"},
+		}
+
+		options := Options{
+			Editor: &multiInput.Selection{},
+		}
+
+		tprogram := tea.NewProgram(multiInput.InitialModelMulti(listOfEditors.options, options.Editor, "Selecciona tu editor de confianza"))
+		if _, err := tprogram.Run(); err != nil {
+			fmt.Printf("Error during setup: %v\n", err)
+			os.Exit(1)
 		}
 
 		// Retrieve current user's home directory.
@@ -287,8 +309,9 @@ var SetupCmd = &cobra.Command{
 
 		// Create and start the Bubble Tea program with our steps.
 		m := newSetupModel(steps)
-		p := tea.NewProgram(m)
-		if _, err := p.Run(); err != nil {
+
+		tprogram = tea.NewProgram(m)
+		if _, err := tprogram.Run(); err != nil {
 			fmt.Printf("Error during setup: %v\n", err)
 			os.Exit(1)
 		}
