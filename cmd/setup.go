@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	// Global style definitions from your spinner example.
+	// Global style definitions for text and spinner.
 	textStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Render
 	spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
 	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render
@@ -71,7 +71,7 @@ func (m *setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 
 	case commandResultMsg:
-		// If any command fails, store the error and quit.
+		// If any command fails, capture the error and quit.
 		if msg.err != nil {
 			m.err = msg.err
 			return m, tea.Quit
@@ -102,12 +102,15 @@ func (m *setupModel) View() string {
 }
 
 // runCommand returns a Tea command that executes a step.
+// For the Homebrew installation step it sets NONINTERACTIVE=1.
 func runCommand(s step, index int) tea.Cmd {
 	return func() tea.Msg {
 		cmd := exec.Command(s.command, s.args...)
+		if s.description == "Installing Homebrew..." {
+			cmd.Env = append(os.Environ(), "NONINTERACTIVE=1")
+		}
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			// Include the command output for better debugging.
 			return commandResultMsg{
 				stepIndex: index,
 				err:       fmt.Errorf("%q failed: %v (%s)", s.description, err, output),
@@ -119,8 +122,7 @@ func runCommand(s step, index int) tea.Cmd {
 
 // newSetupModel creates a new setup model with our steps and a single spinner.
 func newSetupModel(steps []step) *setupModel {
-	sp := spinner.New()
-	// Use our single spinner with a fixed style (spinner.Line).
+	sp := spinner.NewModel()
 	sp.Style = spinnerStyle
 	sp.Spinner = spinner.Line
 	return &setupModel{
@@ -150,27 +152,36 @@ var SetupCmd = &cobra.Command{
 		}
 		profilePath := usr.HomeDir + "/.zprofile"
 
-		// Define the initial steps for installing Homebrew and configuring the shell.
-		steps := []step{
-			{
+		// Create a slice for gathering our steps.
+		var steps []step
+
+		// Check if Homebrew is already installed.
+		if _, err := exec.LookPath("brew"); err != nil {
+			// Homebrew is not installed; add installation steps.
+			steps = append(steps, step{
 				description: "Installing Homebrew...",
 				command:     "/bin/bash",
-				args:        []string{"-c", `$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)`},
-			},
-			{
+				args: []string{
+					"-c",
+					// Note: This is the official Homebrew install command.
+					"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)",
+				},
+			})
+			steps = append(steps, step{
 				description: "Appending Homebrew environment to .zprofile...",
 				command:     "/bin/bash",
 				args: []string{
 					"-c",
-					fmt.Sprintf(`(echo; echo 'eval "$(/opt/homebrew/bin/brew shellenv)"') >> %s`,
-						profilePath),
+					fmt.Sprintf(`(echo; echo 'eval "$(/opt/homebrew/bin/brew shellenv)"') >> %s`, profilePath),
 				},
-			},
-			{
+			})
+			steps = append(steps, step{
 				description: "Evaluating Homebrew environment...",
 				command:     "/bin/bash",
 				args:        []string{"-c", `eval "$(/opt/homebrew/bin/brew shellenv)"`},
-			},
+			})
+		} else {
+			fmt.Println("Homebrew is already installed, skipping installation.")
 		}
 
 		// Append formula installation steps.
@@ -191,7 +202,7 @@ var SetupCmd = &cobra.Command{
 			})
 		}
 
-		// Create and start the Bubble Tea program with our single spinner.
+		// Create and start the Bubble Tea program with our steps.
 		m := newSetupModel(steps)
 		p := tea.NewProgram(m)
 		if _, err := p.Run(); err != nil {
