@@ -4,7 +4,7 @@ package multiSelect
 
 import (
 	"fmt"
-	"paisa-welcome/cmd/program"
+	"paisanos-cli/cmd/program"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"paisa-welcome/cmd/ui/multiInput"
+	"paisanos-cli/cmd/ui/multiInput"
 	"runtime"
 	"strings"
 
