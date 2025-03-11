@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"paisanos-cli/cmd/program"
+	"paisanos-cli/cmd/ui/flag"
 	"paisanos-cli/cmd/ui/multiInput"
 	"runtime"
 	"strings"
@@ -192,6 +194,14 @@ var SetupCmd = &cobra.Command{
 			return
 		}
 
+		program := program.Project{}
+
+		tprogram := tea.NewProgram(flag.InitialModelFlag(&program))
+		if _, err := tprogram.Run(); err != nil {
+			fmt.Printf("Error during setup: %v\n", err)
+			os.Exit(1)
+		}
+
 		listOfEditors := listOptions{
 			options: []string{"neovim", "cursor", "visual-studio-code"},
 		}
@@ -200,7 +210,7 @@ var SetupCmd = &cobra.Command{
 			Editor: &multiInput.Selection{},
 		}
 
-		tprogram := tea.NewProgram(multiInput.InitialModelMulti(listOfEditors.options, options.Editor, "Selecciona tu editor de confianza"))
+		tprogram = tea.NewProgram(multiInput.InitialModelMulti(listOfEditors.options, options.Editor, "Selecciona tu editor de confianza", &program))
 		if _, err := tprogram.Run(); err != nil {
 			fmt.Printf("Error during setup: %v\n", err)
 			os.Exit(1)

@@ -2,6 +2,7 @@ package multiInput
 
 import (
 	"fmt"
+	"paisanos-cli/cmd/program"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -26,18 +27,20 @@ type model struct {
 	selected map[int]struct{}
 	choice   *Selection
 	header   string
+	exit     *bool
 }
 
 func (m model) Init() tea.Cmd {
 	return nil
 }
 
-func InitialModelMulti(choices []string, selection *Selection, header string) model {
+func InitialModelMulti(choices []string, selection *Selection, header string, program *program.Project) model {
 	return model{
 		choices:  choices,
 		selected: make(map[int]struct{}),
 		choice:   selection,
 		header:   titleStyle(header),
+		exit:     &program.Exit,
 	}
 }
 
@@ -71,6 +74,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, tea.Quit
 			}
+		case "ctrl+c", "q":
+			*m.exit = true
+			return m, tea.Quit
 		}
 	}
 	return m, nil
