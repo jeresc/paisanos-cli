@@ -1,6 +1,3 @@
-/*
-Copyright © 2025 Paisanos
-*/
 package cmd
 
 import (

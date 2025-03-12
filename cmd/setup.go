@@ -8,6 +8,7 @@ import (
 	"paisanos-cli/cmd/program"
 	"paisanos-cli/cmd/ui/flag"
 	"paisanos-cli/cmd/ui/multiInput"
+	"paisanos-cli/cmd/ui/packageManager"
 	"runtime"
 	"strings"
 
@@ -16,6 +17,17 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
+
+var packages = []packageManager.Package{
+	{DisplayName: "Neovim", BrewName: "neovim", Kind: packageManager.Formula},
+	{DisplayName: "Chrome", BrewName: "google-chrome", Kind: packageManager.Cask},
+	{DisplayName: "Figma", BrewName: "figma", Kind: packageManager.Cask},
+	{DisplayName: "Notion", BrewName: "notion", Kind: packageManager.Cask},
+	{DisplayName: "Slack", BrewName: "slack", Kind: packageManager.Cask},
+	{DisplayName: "Obsidian", BrewName: "obsidian", Kind: packageManager.Cask},
+	{DisplayName: "Google Chrome", BrewName: "google-chrome", Kind: packageManager.Cask},
+	{DisplayName: "Notion Calendar", BrewName: "notion-calendar", Kind: packageManager.Cask},
+}
 
 var (
 	// Global style definitions for text and spinner.
@@ -30,6 +42,8 @@ var (
 // Lists for normal (formula) and cask installations.
 var normalInstallations = []string{
 	"fnm",
+	"chrome-cli",
+	"openfortivpn",
 }
 
 var caskInstallations = []string{
@@ -37,6 +51,8 @@ var caskInstallations = []string{
 	"notion",
 	"slack",
 	"google-chrome",
+	"notion-calendar",
+	"obsidian",
 }
 
 type Options struct {
@@ -68,8 +84,8 @@ type commandResultMsg struct {
 	err       error
 }
 
-// setupModel is the Bubble Tea model that runs our setup steps.
-type setupModel struct {
+// *model is the Bubble Tea model that runs our setup steps.
+type model struct {
 	spinner     spinner.Model
 	steps       []step
 	currentStep int
@@ -78,7 +94,7 @@ type setupModel struct {
 }
 
 // Init starts the spinner and executes the first step.
-func (m *setupModel) Init() tea.Cmd {
+func (m *model) Init() tea.Cmd {
 	if len(m.steps) == 0 {
 		m.done = true
 
@@ -92,7 +108,7 @@ func (m *setupModel) Init() tea.Cmd {
 }
 
 // Update handles messages (spinner ticks and command results).
-func (m *setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// If the setup is done, ignore further messages and quit.
 	if m.done {
 		return m, tea.Quit
@@ -132,7 +148,7 @@ func (m *setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the current UI of the setup.
-func (m *setupModel) View() string {
+func (m *model) View() string {
 	if m.err != nil {
 		return fmt.Sprintf("\n%s\n", textStyle(fmt.Sprintf("Error: %v", m.err)))
 	}
@@ -163,11 +179,12 @@ func runCommand(s step, index int) tea.Cmd {
 }
 
 // newSetupModel creates a new setup model with our steps and a single spinner.
-func newSetupModel(steps []step) *setupModel {
+func InitialSetupModel(steps []step) *model {
 	sp := spinner.New()
 	sp.Style = spinnerStyle
 	sp.Spinner = spinner.Line
-	return &setupModel{
+
+	return &model{
 		spinner:     sp,
 		steps:       steps,
 		currentStep: 0,
@@ -196,7 +213,13 @@ var SetupCmd = &cobra.Command{
 
 		program := program.Project{}
 
-		tprogram := tea.NewProgram(flag.InitialModelFlag(&program))
+		tprogram := tea.NewProgram(packageManager.InitialModelPkgManager(packages, &program))
+		if _, err := tprogram.Run(); err != nil {
+			fmt.Printf("Error during setup: %v\n", err)
+			os.Exit(1)
+		}
+
+		tprogram = tea.NewProgram(flag.InitialModelFlag(&program))
 		if _, err := tprogram.Run(); err != nil {
 			fmt.Printf("Error during setup: %v\n", err)
 			os.Exit(1)
@@ -324,7 +347,7 @@ var SetupCmd = &cobra.Command{
 		}
 
 		// Create and start the Bubble Tea program with our steps.
-		m := newSetupModel(steps)
+		m := InitialSetupModel(steps)
 
 		tprogram = tea.NewProgram(m)
 		if _, err := tprogram.Run(); err != nil {

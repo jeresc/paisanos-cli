@@ -3,15 +3,21 @@ package program
 import (
 	"log"
 	"os"
+	"paisanos-cli/cmd/flags"
 	"runtime"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type Project struct {
-	Editors []string
-	Exit    bool
-	OSCheck map[string]bool
+	Editors   []string
+	Exit      bool
+	EditorMap map[flags.Editor]Editor
+	OSCheck   map[string]bool
+}
+
+type Editor struct {
+	DisplayName string
 }
 
 func (p *Project) ExitCLI(tprogram *tea.Program) {
