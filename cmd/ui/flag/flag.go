@@ -2,7 +2,6 @@ package flag
 
 import (
 	"fmt"
-	"os/user"
 	"paisanos-cli/cmd/program"
 	"time"
 
@@ -18,7 +17,6 @@ var (
 	primary = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("190")).
 		Background(lipgloss.ANSIColor(0))
-	username, _ = getUserName()
 )
 
 // flagFrames contiene los frames de la animación del flag.
@@ -60,15 +58,6 @@ type model struct {
 	exit            *bool
 }
 
-// getUserName obtiene el nombre del usuario actual.
-func getUserName() (string, error) {
-	currentUser, err := user.Current()
-	if err != nil {
-		return "", fmt.Errorf("error obteniendo el usuario actual: %w", err)
-	}
-	return currentUser.Username, nil
-}
-
 // InitialModelFlag inicializa y retorna el modelo para el flag.
 // Se reciben los frames y los mensajes a mostrar.
 func InitialModelFlag(program *program.Project) model {
@@ -79,7 +68,7 @@ func InitialModelFlag(program *program.Project) model {
 		phase:           phaseTyping,
 		typewriterIndex: 0,
 		messages: []string{
-			fmt.Sprintf("Bienvenido a paisanos, %s.", username),
+			fmt.Sprintf("Bienvenido a paisanos, %s.", program.Username),
 			"¡Juntos vamos a conquistar el mundo!",
 		},
 		currentMessage: 0,

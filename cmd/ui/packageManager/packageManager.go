@@ -2,11 +2,11 @@ package packageManager
 
 import (
 	"fmt"
-	"math/rand"
+	"os"
+	"os/exec"
 	"paisanos-cli/cmd/program"
 	"paisanos-cli/utils"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -25,6 +25,7 @@ type Package struct {
 	DisplayName string
 	BrewName    string
 	Kind        BrewPackageType
+	Disabled    bool
 }
 
 type model struct {
@@ -35,6 +36,7 @@ type model struct {
 	spinner  spinner.Model
 	progress progress.Model
 	done     bool
+	exit     *bool
 }
 
 var (
@@ -54,6 +56,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc", "q":
+			*m.exit = true
 			return m, tea.Quit
 		}
 	case installedPkgMsg:
@@ -74,7 +77,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(
 			progressCmd,
 			tea.Printf("%s %s", checkMark, pkg.DisplayName), // print success message above our program
-			downloadAndInstall(m.packages[m.index]),         // download the next package
+			downloadAndInstall(pkg),                         // download the next package
 		)
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -116,22 +119,79 @@ func (m model) View() string {
 type installedPkgMsg string
 
 func downloadAndInstall(pkg Package) tea.Cmd {
-	// This is where you'd do i/o stuff to download and install packages. In
-	// our case we're just pausing for a moment to simulate the process.
-	d := time.Millisecond * time.Duration(rand.Intn(500)) //nolint:gosec
-	return tea.Tick(d, func(t time.Time) tea.Msg {
+	return func() tea.Msg {
+		// Skip disabled packages
+		if pkg.Disabled {
+			return ""
+		}
+
+		if pkg.BrewName == "google-chrome" {
+			if _, err := os.Stat("/Applications/Google Chrome.app"); err == nil {
+				return installedPkgMsg(pkg.BrewName)
+			}
+		}
+
+		// Check if package is already installed
+		args := []string{"list"}
+		if pkg.Kind == Cask {
+			args = append(args, "--cask")
+		}
+		args = append(args, pkg.BrewName)
+
+		cmd := exec.Command("brew", args...)
+		if err := cmd.Run(); err == nil {
+			// Package is already installed
+			return installedPkgMsg(pkg.BrewName)
+		}
+
+		// Install the package
+		installArgs := []string{"install"}
+		if pkg.Kind == Cask {
+			installArgs = append(installArgs, "--cask")
+		}
+		installArgs = append(installArgs, pkg.BrewName)
+
+		installCmd := exec.Command("brew", installArgs...)
+
+		// Capture output for logging/error reporting
+		output, err := installCmd.CombinedOutput()
+		if err != nil {
+			// Return error message that could be handled in the Update method
+			return installErrorMsg{
+				pkg:    pkg,
+				err:    err,
+				output: string(output),
+			}
+		}
+
 		return installedPkgMsg(pkg.BrewName)
-	})
+	}
+}
+
+// Add this new type to handle installation errors
+type installErrorMsg struct {
+	pkg    Package
+	err    error
+	output string
 }
 
 func InitialModelPkgManager(packages []Package, program *program.Project) model {
+	selectedPackage := []Package{}
+	for _, pkg := range packages {
+		if pkg.Disabled {
+			continue
+		}
+		selectedPackage = append(selectedPackage, pkg)
+	}
+
 	return model{
-		packages: packages,
+		packages: selectedPackage,
 		spinner:  spinner.New(),
 		progress: progress.New(
 			progress.WithScaledGradient("#000000", "#efff00"),
 			progress.WithWidth(40),
 			progress.WithoutPercentage(),
 		),
+		exit: &program.Exit,
 	}
 }

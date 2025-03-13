@@ -1,9 +1,11 @@
 package program
 
 import (
+	"errors"
 	"log"
 	"os"
 	"paisanos-cli/cmd/flags"
+	"paisanos-cli/utils"
 	"runtime"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,6 +16,8 @@ type Project struct {
 	Exit      bool
 	EditorMap map[flags.Editor]Editor
 	OSCheck   map[string]bool
+	Username  string
+	HomeDir   string
 }
 
 type Editor struct {
@@ -27,6 +31,29 @@ func (p *Project) ExitCLI(tprogram *tea.Program) {
 		}
 		os.Exit(1)
 	}
+}
+
+func (p *Project) CreateEditorMap() {
+	p.EditorMap = make(map[flags.Editor]Editor)
+	p.EditorMap[flags.Cursor] = Editor{DisplayName: "Cursor"}
+	p.EditorMap[flags.Vscode] = Editor{DisplayName: "VSCode"}
+	p.EditorMap[flags.Nvim] = Editor{DisplayName: "Neovim"}
+	p.EditorMap[flags.Xcode] = Editor{DisplayName: "Xcode"}
+	p.EditorMap[flags.None] = Editor{DisplayName: "None"}
+}
+
+func (p *Project) Run() error {
+	p.CheckOS()
+	p.CreateEditorMap()
+	currentuser, _ := utils.GetCurrentUser()
+	p.HomeDir = currentuser.HomeDir
+	p.Username = currentuser.Username
+
+	if !p.OSCheck["darwin"] {
+		return errors.New("lo lamentamos, este comando solo funciona en macOS")
+	}
+
+	return nil
 }
 
 func (p *Project) CheckOS() {

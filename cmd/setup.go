@@ -4,12 +4,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"os/user"
 	"paisanos-cli/cmd/program"
 	"paisanos-cli/cmd/ui/flag"
-	"paisanos-cli/cmd/ui/multiInput"
+	"paisanos-cli/cmd/ui/multiSelect"
 	"paisanos-cli/cmd/ui/packageManager"
-	"runtime"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -26,7 +24,7 @@ var packages = []packageManager.Package{
 	{DisplayName: "Slack", BrewName: "slack", Kind: packageManager.Cask},
 	{DisplayName: "Obsidian", BrewName: "obsidian", Kind: packageManager.Cask},
 	{DisplayName: "Google Chrome", BrewName: "google-chrome", Kind: packageManager.Cask},
-	{DisplayName: "Notion Calendar", BrewName: "notion-calendar", Kind: packageManager.Cask},
+	{DisplayName: "Notion Calendar", BrewName: "notion-calendar", Kind: packageManager.Cask, Disabled: true},
 }
 
 var (
@@ -39,24 +37,8 @@ var (
 	skipped      = lipgloss.NewStyle().Foreground(lipgloss.Color("246")).Render
 )
 
-// Lists for normal (formula) and cask installations.
-var normalInstallations = []string{
-	"fnm",
-	"chrome-cli",
-	"openfortivpn",
-}
-
-var caskInstallations = []string{
-	"figma",
-	"notion",
-	"slack",
-	"google-chrome",
-	"notion-calendar",
-	"obsidian",
-}
-
 type Options struct {
-	Editor *multiInput.Selection
+	Editor *multiSelect.Selection
 }
 
 type step struct {
@@ -192,67 +174,52 @@ func InitialSetupModel(steps []step) *model {
 	}
 }
 
-type listOptions struct {
-	options []string
-}
-
-// fileExists returns true if the given filename exists.
-func fileExists(filename string) bool {
-	_, err := os.Stat(filename)
-	return err == nil
+func init() {
+	rootCmd.AddCommand(setupCmd)
 }
 
 // SetupCmd is a Cobra command that sets up your macOS environment.
-var SetupCmd = &cobra.Command{
+var setupCmd = &cobra.Command{
+	Use:   "setup",
+	Short: "Setup your macOS environment and forget about manual installations",
+	Long:  `paisanos-cli is a CLI tool for setting up your macOS environment. It is designed to be easy to use and quick to set up.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Ensure this command runs only on macOS.
-		if runtime.GOOS != "darwin" {
-			fmt.Println("Este comando solo funciona en macOS.")
-			return
+		var tprogram *tea.Program
+		var err error
+
+		project := program.Project{}
+
+		err = project.Run()
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			os.Exit(1)
 		}
 
-		program := program.Project{}
+		selection := &multiSelect.Selection{}
 
-		tprogram := tea.NewProgram(packageManager.InitialModelPkgManager(packages, &program))
+		tprogram = tea.NewProgram(multiSelect.InitialModelMultiSelect([]multiSelect.Item{
+			{Title: "Neovim", Flag: "neovim", Value: "neovim", Description: "Neovim ninja detected"},
+			{Title: "Cursor", Flag: "cursor", Value: "cursor", Description: "Vibe coder"},
+			{Title: "Visual Studio Code", Flag: "vscode", Value: "vscode"},
+		}, selection, "Selecciona tu editor de confianza", &project))
 		if _, err := tprogram.Run(); err != nil {
 			fmt.Printf("Error during setup: %v\n", err)
 			os.Exit(1)
 		}
+		project.ExitCLI(tprogram)
 
-		tprogram = tea.NewProgram(flag.InitialModelFlag(&program))
+		tprogram = tea.NewProgram(flag.InitialModelFlag(&project))
 		if _, err := tprogram.Run(); err != nil {
 			fmt.Printf("Error during setup: %v\n", err)
 			os.Exit(1)
 		}
+		project.ExitCLI(tprogram)
 
-		listOfEditors := listOptions{
-			options: []string{"neovim", "cursor", "visual-studio-code"},
-		}
-
-		options := Options{
-			Editor: &multiInput.Selection{},
-		}
-
-		tprogram = tea.NewProgram(multiInput.InitialModelMulti(listOfEditors.options, options.Editor, "Selecciona tu editor de confianza", &program))
-		if _, err := tprogram.Run(); err != nil {
-			fmt.Printf("Error during setup: %v\n", err)
-			os.Exit(1)
-		}
-
-		if options.Editor.Choice == "neovim" {
-			fmt.Println("Ninja neovim detectado 🥷")
-			normalInstallations = append(normalInstallations, "neovim")
-		} else {
-			caskInstallations = append(caskInstallations, options.Editor.Choice)
-		}
-
-		// Retrieve current user's home directory.
-		usr, err := user.Current()
 		if err != nil {
 			fmt.Printf("Error retrieving current user: %v\n", err)
 			return
 		}
-		profilePath := usr.HomeDir + "/.zprofile"
+		profilePath := project.HomeDir + "/.zprofile"
 
 		var steps []step
 		brewInstalled := false
@@ -286,73 +253,13 @@ var SetupCmd = &cobra.Command{
 			fmt.Println("Homebrew ya se encuentra instalada, saltando instalación.")
 		}
 
-		// Append normal (formula) installation steps.
-		for _, pkg := range normalInstallations {
-			if brewInstalled {
-				// Check if the package is already installed.
-				if err := exec.Command("brew", "list", pkg).Run(); err != nil {
-					steps = append(steps, step{
-						description: installingDescription(pkg),
-						command:     "brew",
-						args:        []string{"install", pkg},
-					})
-				} else {
-					fmt.Println(alreadyInstalled(pkg))
-				}
-			} else {
-				steps = append(steps, step{
-					description: installingDescription(pkg),
-					command:     "brew",
-					args:        []string{"install", pkg},
-				})
-			}
-		}
+		fmt.Println("brew status ", brewInstalled)
 
-		// Append cask installation steps.
-		for _, pkg := range caskInstallations {
-			if brewInstalled {
-				// Special check for Google Chrome.
-				if pkg == "google-chrome" {
-					if fileExists("/Applications/Google Chrome.app") {
-						fmt.Println(alreadyInstalled(pkg))
-						continue
-					}
-					if err := exec.Command("brew", "list", "--cask", pkg).Run(); err != nil {
-						steps = append(steps, step{
-							description: installingDescription(pkg),
-							command:     "brew",
-							args:        []string{"install", "--cask", pkg},
-						})
-					} else {
-						fmt.Println(alreadyInstalled(pkg))
-					}
-				} else {
-					if err := exec.Command("brew", "list", "--cask", pkg).Run(); err != nil {
-						steps = append(steps, step{
-							description: installingDescription(pkg),
-							command:     "brew",
-							args:        []string{"install", "--cask", pkg},
-						})
-					} else {
-						fmt.Println(alreadyInstalled(pkg))
-					}
-				}
-			} else {
-				steps = append(steps, step{
-					description: installingDescription(pkg),
-					command:     "brew",
-					args:        []string{"install", "--cask", pkg},
-				})
-			}
-		}
-
-		// Create and start the Bubble Tea program with our steps.
-		m := InitialSetupModel(steps)
-
-		tprogram = tea.NewProgram(m)
+		tprogram = tea.NewProgram(packageManager.InitialModelPkgManager(packages, &project))
 		if _, err := tprogram.Run(); err != nil {
 			fmt.Printf("Error during setup: %v\n", err)
 			os.Exit(1)
 		}
+		project.ExitCLI(tprogram)
 	},
 }

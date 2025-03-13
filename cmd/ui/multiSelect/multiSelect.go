@@ -12,11 +12,11 @@ import (
 
 // Change this
 var (
-	focusedStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("#01FAC6")).Bold(true)
-	titleStyle            = lipgloss.NewStyle().Background(lipgloss.Color("#01FAC6")).Foreground(lipgloss.Color("#030303")).Bold(true).Padding(0, 1, 0)
+	focusedStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("190")).Bold(true)
+	titleStyle            = lipgloss.NewStyle().Background(lipgloss.Color("190")).Foreground(lipgloss.Color("#030303")).Bold(true).Padding(0, 1, 0).SetString("paisanos")
 	selectedItemStyle     = lipgloss.NewStyle().PaddingLeft(1).Foreground(lipgloss.Color("170")).Bold(true)
 	selectedItemDescStyle = lipgloss.NewStyle().PaddingLeft(1).Foreground(lipgloss.Color("170"))
-	descriptionStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#40BDA3"))
+	descriptionStyle      = lipgloss.NewStyle().PaddingLeft(6)
 )
 
 // A Selection represents a choice made in a multiSelect step
@@ -30,14 +30,12 @@ func (s *Selection) Update(optionName string, value bool) {
 }
 
 type Item struct {
-	Title string
-	Flag  string
-	Value string
+	Title       string
+	Flag        string
+	Value       string
+	Description string
 }
 
-// A multiSelect.model contains the data for the multiSelect step.
-//
-// It has the required methods that make it a bubbletea.Model
 type model struct {
 	cursor   int
 	options  []Item
@@ -58,7 +56,7 @@ func InitialModelMultiSelect(options []Item, selection *Selection, header string
 		options:  options,
 		selected: make(map[int]struct{}),
 		choices:  selection,
-		header:   titleStyle.Render(header),
+		header:   titleStyle.Render() + " " + header,
 		exit:     &program.Exit,
 	}
 }
@@ -81,7 +79,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(m.options)-1 {
 				m.cursor++
 			}
-		case "enter", " ":
+		case "enter", " ", "right":
 			_, ok := m.selected[m.cursor]
 			if ok {
 				delete(m.selected, m.cursor)
@@ -102,6 +100,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View is called to draw the multiSelect step
 func (m model) View() string {
 	s := m.header + "\n\n"
+	currentOption := m.options[m.cursor]
 
 	for i, option := range m.options {
 		cursor := " "
@@ -116,10 +115,12 @@ func (m model) View() string {
 		}
 
 		title := focusedStyle.Render(option.Title)
+		description := descriptionStyle.Render(option.Description)
 
-		s += fmt.Sprintf("%s [%s] %s\n%s\n\n", cursor, checked, title)
+		s += fmt.Sprintf("%s [%s] %s\n%s\n", cursor, checked, title, description)
 	}
 
-	s += fmt.Sprintf("Press %s to confirm choice.\n", focusedStyle.Render("y"))
+	s += fmt.Sprintf("\nPresiona %s para confirmar la elección.\n", focusedStyle.Render("y"))
+	s += fmt.Sprintf("currently on %s\n", currentOption.Title)
 	return s
 }
