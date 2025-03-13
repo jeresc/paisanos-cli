@@ -14,7 +14,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-type BrewPackageType string
+type (
+	BrewPackageType string
+	installedPkgMsg string
+	skippedPkgMsg   string
+)
 
 const (
 	Formula BrewPackageType = "formula" // Normal packages
@@ -43,6 +47,7 @@ var (
 	currentPkgNameStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("211"))
 	doneStyle           = lipgloss.NewStyle().Margin(1, 2)
 	checkMark           = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).SetString("✓")
+	skippedMark         = lipgloss.NewStyle().Foreground(lipgloss.Color("246")).SetString("■")
 )
 
 func (m model) Init() tea.Cmd {
@@ -59,6 +64,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			*m.exit = true
 			return m, tea.Quit
 		}
+	case skippedPkgMsg:
+		pkg := m.packages[m.index]
+		if m.index >= len(m.packages)-1 {
+			// Everything's been installed. We're done!
+			m.done = true
+			return m, tea.Sequence(
+				tea.Printf("%s  ya se encuentra instalado.", skippedMark.Render(pkg.DisplayName)),
+				tea.Quit, // exit the program
+			)
+		}
+
+		// Update progress bar
+		m.index++
+		progressCmd := m.progress.SetPercent(float64(m.index) / float64(len(m.packages)))
+
+		return m, tea.Batch(
+			progressCmd,
+			tea.Printf("%s ya se encuentra instalado.", skippedMark.Render(pkg.DisplayName)), // print success message above our program
+			downloadAndInstall(pkg), // download the next package
+		)
 	case installedPkgMsg:
 		pkg := m.packages[m.index]
 		if m.index >= len(m.packages)-1 {
@@ -116,8 +141,6 @@ func (m model) View() string {
 	return spin + info + gap + prog + pkgCount
 }
 
-type installedPkgMsg string
-
 func downloadAndInstall(pkg Package) tea.Cmd {
 	return func() tea.Msg {
 		// Skip disabled packages
@@ -127,7 +150,7 @@ func downloadAndInstall(pkg Package) tea.Cmd {
 
 		if pkg.BrewName == "google-chrome" {
 			if _, err := os.Stat("/Applications/Google Chrome.app"); err == nil {
-				return installedPkgMsg(pkg.BrewName)
+				return skippedPkgMsg(pkg.BrewName)
 			}
 		}
 
@@ -141,7 +164,7 @@ func downloadAndInstall(pkg Package) tea.Cmd {
 		cmd := exec.Command("brew", args...)
 		if err := cmd.Run(); err == nil {
 			// Package is already installed
-			return installedPkgMsg(pkg.BrewName)
+			return skippedPkgMsg(pkg.BrewName)
 		}
 
 		// Install the package
